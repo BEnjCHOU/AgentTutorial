@@ -5,3 +5,4 @@ env
 storage
 .pytest_cache
 .vscode
+pyrightconfig.json

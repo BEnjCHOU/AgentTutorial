@@ -1,0 +1,58 @@
+services:
+  # 1. Database Service (Postgres with pgvector)
+  db:
+    image: pgvector/pgvector:pg18
+    container_name: chat-app-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vectordoc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Backend Service (FastAPI)
+  backend:
+    build: ./backend
+    container_name: chat-app-backend
+    environment:
+      # buffer turned on
+      PYTHONUNBUFFERED: "1"
+      # Connection to the 'db' service defined above
+      DATABASE_URL: postgresql://user:password@db:5432/vectordoc
+      # Pass your OpenAI API Key from your local shell or .env file
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Persist uploaded files
+      - ./backend/data:/app/data
+
+  # 3. Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend/my-app
+      dockerfile: Dockerfile
+    container_name: chat-app-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Backend API URL - browser makes requests, so use localhost (backend is exposed on host port 8000)
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
